@@ -1,0 +1,362 @@
+#!/bin/bash
+
+#help output
+if [[ $1 == "--help" || $1 == "?" ]]; then
+	echo "This program prints network and network interface information"
+	echo -e "Passing no options shows network info and MAC and IP info for each online interface\n"
+	echo "Use b, -b, -br, or --brief to only show basic router and IP address info"
+	echo "Use a, -a, -all, or --all to show all interfaces with DHCP and DNS info"
+	echo "This command does not support multiple switches; they are mutually exclusive."
+	echo -e "\nColors can be easily changed by editing the script file"
+	echo "ip information requires the ip command to be installed."
+	echo "dhcp and dns information requires nmcli to be installed."
+	echo -e "\nThe command makes use of the 'ip' command to fetch the system's IP and MAC address"
+	echo "The DHCP and DNS information is fetched from the dhclient.leases file"
+	echo "The location of this file may vary between distributions, and may not be present at all"
+	echo "if systemd is not in use."
+	exit 0
+fi
+
+#
+#input handling and variable declaration
+#
+
+#handle arguments
+while getopts "ab" opt;  do
+	case $opt in
+		a) all=true ;;
+		b) brief=true ;;
+	esac
+done
+shift $((OPTIND - 1))
+
+
+#the 'brief' command
+if [[ $brief == true ]];then
+	ip=$(ip --color -br addr | grep "UP")
+	route=$(ip --color route | grep "default via" | sed 's/proto.*//')
+	line_ct=$(printf "$ip\n" | wc -l)
+	for (( i=1;i <= $line_ct; i++ ))
+	do
+		printf "$ip\n" | sed -n ${i}p
+		printf "\t"
+		printf "$route\n" | sed -n ${i}p
+	done
+	exit 0
+fi
+
+
+#Plan:  Heading on each interface with if number.  Put if name on far left
+#add speed to a column somewhere using ethtool $line_if | grep Speed
+#wireless use iwconfig and maybe put bit rate and frequency?
+#or lshw -class network | grep capacity
+#something like:
+#if 1          Link-type:    Status:
+#enp0s3  UP    ethernet      1000Mb/s
+
+
+#colors for link-types (ethernet, Wi-Fi, etc.) are established later, in-context
+reset=$(tput sgr0)	#removes formatting
+fmt_header=$(tput smul;tput bold;tput setaf 67)	#headers are underlined, bold, and cobalt blue
+fmt_lo=$(tput setaf 8)		#loopback is gray
+fmt_IPv4=$(tput setaf 5)	#IPv4 color is purple
+fmt_IPv6=$(tput setaf 4)	#IPv6 color is blue
+fmt_if=$(tput setaf 6;tput bold) #interface is bold and teal
+fmt_MAC=$(tput setaf 11) 	#MAC addr color is yellow
+fmt_DHCP=$(tput setaf 253)	#DHCP and DNS text color is light gray (232-255 are shades of gray)
+fmt_mask=$(tput setaf 153)	#Subnet Mask color is periwinkle
+
+#setting input conditions to allow a search by interface name
+if [[ $1 == lo ]]; then
+	ip_lo=$(ip --brief address show | grep "lo.*127\." | cut -c33-)
+	if_lo=$(ip --brief link | grep "lo.*00:00:")
+	lo_MAC=$(printf "$if_lo" | cut -c33- | sed 's/<.*//g')
+	lo_if=$(printf "$if_lo" | cut -c1-8)
+	line_ct=$(printf "$if_lo\n" | wc -l)
+	#loopback print with color formatting, unlike what prints with -a
+	echo "${fmt_header}Loopback:${reset}"
+	for (( i=1; i<=line_ct; i++ )); do
+		echo -n $lo_if | sed -n ${i}p
+		echo -e "\tIP:\t${fmt_IPv4}${ip_lo}$reset" | sed -n ${i}p | sed -e "s/ /$fmt_IPv6\t/"
+		echo -e "\tMAC:\t${fmt_MAC}$lo_MAC" | sed -n ${i}p
+	done
+	exit 0
+elif [[ $# > 0 ]]; then
+	#allow to search an interface
+	if_search=true
+fi
+
+#set ip command output info into variables
+ip_info=$(ip --brief address show | grep -v "lo.*127\.")
+if_info=$(ip --brief link | grep -v "lo.*00:00:")
+
+#allow for search of a specific interface name
+if [[ $if_search == true ]]
+then
+	ip_info=$(printf "$ip_info" | grep -w $1) || if_not_found=true
+	if_info=$(printf "$if_info" | grep -w $1) || if_not_found=true
+fi
+[[ $if_not_found == true ]] && echo -e "interface name not found$reset\n" && exit 1
+
+#trim variables to their useful parts
+ip_info=$(printf "$ip_info" | cut -c33-)
+MAC_adr=$(printf "$if_info" | cut -c33- | sed 's/<.*//g')
+line_ct=$(printf "$if_info\n" | wc -l)
+
+##
+#DHCP and DNS variable creation
+##
+#Uses either nmcli or dhclient.leases to fetch this information
+
+#if nmcli is installed, then use it instead of dhclient.leases file
+if hash nmcli 2>/dev/null; then
+	use_nmcli=true
+#dhclient leases file can be found in two directories depending on distro
+elif [ -s /var/lib/dhcp/dhclient.leases ]; then
+	tmp=$(cat /var/lib/dhcp/dhclient.leases | sed 's/interface/@/' | sed 's/;//')
+	use_nmcli=false
+elif [ -s /var/lib/dhclient/dhclient.leases ]; then
+	tmp=$(cat /var/lib/dhclient/dhclient.leases | sed 's/interface/@/' | sed 's/;//')
+	use_nmcli=false
+#will rely on resolv.conf for DNS and not find DHCP if none of the above methods works
+else
+	leases_not_found=true
+	use_nmcli=false
+	dns_info=$(cat /etc/resolv.conf | sed 's/#.*//')
+fi
+
+if [[ $use_nmcli != true ]]
+then
+	#break up the leases file by interface, each object of the leases array following the word 'interface'
+	IFS=$'@'
+	leases=($tmp)
+	IFS=$' '
+	gateway=()
+	unset tmp
+	
+	#set variables for each lease
+	for (( i=1; i <= ${#leases[@]}; i++ ))
+	do
+		if_name[i]=$(echo ${leases[i]} | head -1 | sed 's/"//'g | xargs)
+		dhcp[i]=$(echo ${leases[i]} | sed -n 's/option dhcp-server-identifier //p' | xargs)
+		gateway[i]=$(echo ${leases[i]} | sed -n 's/option routers //p' | xargs)
+		dns[i]=$(echo ${leases[i]} | sed -n 's/option domain-name-servers //p' | xargs)
+		dns_name[i]=$(echo ${leases[i]} | sed -n 's/option domain-name //p' | xargs)
+		expiry[i]=$(echo ${leases[i]} | sed -n 's/expire [0-9] //p' | xargs)
+		tmp=$(echo ${leases[i]} | sed -n 's/renew [0-9] //p' | xargs)
+		renew[i]=$(date -d <<< printf "$tmp")
+		tmp=$(echo ${leases[i]} | sed -n 's/rebind [0-9] //p' | xargs)
+		rebind[i]=$(date -d <<< printf "$tmp")
+	done
+	if [[ $all == true ]]
+	then
+		#Check if two leases exist for the same if and use the newer one
+		for lease1 in ${!leases[@]}
+		do
+			for lease2 in ${!leases[@]}
+			do
+				if [[ ${if_name[lease1]} == ${if_name[lease2]} ]] && [[ $lease1 != $lease2 ]]
+				then
+					if [[ ${expiry[lease1]} > ${expiry[lease2]} ]]
+					then
+						if_name[lease2]="X"
+					else
+						if_name[lease1]="X"
+					fi
+				fi
+			done
+		done
+	fi
+fi
+
+echo $reset
+
+
+###
+#main printing section
+#prints name, type, status, MAC address and each IP address for each interface
+###
+
+
+#iterate over each interface
+for (( i=1;i <= $line_ct; i++ ))
+do
+	#get status of interface
+	line_stat=$(printf "${if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)
+	#unless 'all' flag is used or interface is searched for explicitly, skip 'DOWN' interfaces
+	if [[ $line_stat != *"UP"* ]] && [[ $all != true ]] && [[ $if_search != true ]]
+	then
+		(( i++ ))
+		line_stat=$(printf "${if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)
+		(( $i > $line_ct )) && break
+	fi
+	line_if=$(printf "$if_info" | sed -n ${i}p | cut -b 1-8 | xargs)
+	#put each if's IP info in a variable and then put all IP addresses in an array named address
+	line_ip=$(printf "$ip_info" | sed -n ${i}p)
+	address=($line_ip)
+	#Header		--spaces, not tabs to keep underline across
+	echo -e "${fmt_header}if ${i}:   Link:   Link-Type:      Status:"
+	echo -n $reset
+	#print interface name
+	echo -n $fmt_if
+	echo -en "$line_if\t"
+	tput bold
+	#format and print status of the interface
+	[[ $line_stat == *"UP"* ]] && tput setaf 2 || tput setaf 9	#UP=Green, otherwise=red
+	echo -n ${line_stat}$reset
+	
+	#print interface type based on systemd naming convention
+	#backwards compatible with old convention for ethernet and Wi-Fi but not others
+	echo -n $reset
+	if [[ $line_if =~ ^en.*|^eth.* ]]; then
+		tput setaf 3			#set the color for ethernet (orange)
+		printf "\tethernet\t"
+		#print ethernet link speed
+		tmp=$(cat /sys/class/net/$line_if/speed | xargs) && echo "${tmp}Mb/s"
+	elif [[ $line_if == "wl"* ]]; then
+		tput setaf 12			#set the color for WLAN/Wi-Fi (light blue)
+		printf "\tWLAN\t"
+	elif [[ $line_if == "ww"* ]]; then
+		tput setaf 212			#set the color for WWAN/Cellular network (pink)
+		printf "\tcellular"
+	elif [[ $line_if == "ib"* ]]; then
+		tput setaf 2			#set the color for infiniband (green)
+		printf "\tinfiniband"
+	elif [[ $line_if == "sl"* ]]; then
+		tput setaf 20			#set the color for serial line IP (dark blue)
+		printf "\tserial\t"
+	else
+		printf "\tunknown"
+	fi
+
+	#print MAC address
+	printf "${fmt_MAC}\tLAN\tMAC address\t"
+	printf "$MAC_adr\n" | sed -n ${i}p
+
+	#prints IP addresses for each if and labels each one according to its type
+	for j in ${!address[@]}
+	do
+		#labelling IPv4 types
+		if [[ ${address[$j]} == *"."* ]]; then
+			printf "${fmt_IPv4}\tIPv4\t"
+			#label class A and C private ranges
+			if [[ ${address[$j]} == "10."* ]] || [[ ${address[$j]} == "192.168."* ]]; then
+			printf "private"
+			#label class B private IP range
+			elif [[ ${address[$j]} == "172."* ]]; then
+				B=$(echo -n ${address[$j]} | sed -e 's/172\.//' -e 's/\..*//')
+				(( $B >= 16 && $B <= 31 )) && printf "private"
+			else
+				printf "global"
+			fi
+			printf "\t\t"
+		#labelling IPv6 types
+		elif [[ ${address[$j]} == *":"* ]]; then
+			printf "${fmt_IPv6}\tIPv6\t"
+			if [[ ${address[$j]} == "2"???":"* ]];then		#Global Unicast Address
+				printf "global" && long=false
+			elif [[ ${address[$j]} == "fc"??":"* ]];then	#ULA (Unique Local Address)
+				printf "private (ULA)"; long=true
+			elif [[ ${address[$j]} == "fd"??":"* ]];then	#ULA range continued
+				printf "private (ULA)"; long=true
+			elif [[ ${address[$j]} == "fe80:"* ]];then		#link-local
+				printf "link-local" && long=true
+			elif [[ ${address[$j]} == "fec0:"* ]];then		#site-local (deprecated)
+				printf "site-local" && long=true
+			elif [[ ${address[$j]} == "ff"??":"* ]];then	#multicast address
+				printf "multicast" && long=true
+			fi
+			[[ $long == true ]] && printf "\t" || printf "\t\t" 	# 1 tab for long text, 2 for short
+		fi
+		#print IP address & format the mask in default color
+		echo -e "${address[$j]}" | sed -e "s#/#${fmt_mask}/#"
+	done
+
+	#get and print network ID; don't print APIPA entry if found
+	netID=$(ip route | grep $line_if | sed -e 's/default via.*//' -e 's/dev.*//' -e 's/169\.254.*//' | xargs)
+	[ -z $netID ] || echo -e $fmt_DHCP"\t\tNetwork ID:$fmt_IPv4\t$netID" | sed -e "s#/#${fmt_mask}/#"
+	#print default gateway
+	if_gateway=$(ip route | grep $line_if | grep "default via" | sed 's/default via //' | sed -e 's/dev.*//' | xargs)
+	[ -z $if_gateway ] || echo -e "\t   ${fmt_DHCP}Default Gateway:${fmt_IPv4}\t$if_gateway"
+	
+	####
+	#DNS and DHCP information
+	####
+
+	#if nmcli is able to be used; use it
+	if [[ $all == true && $use_nmcli == true && $line_stat == UP ]]
+	then
+		#get DHCP and DNS information from nmcli
+		line_UUID=$(nmcli con | grep $line_if | cut -c21- | sed 's/ .*//' | xargs)
+		dhns_info=$(nmcli con show $line_UUID | grep 'DHCP[46].OPTION' | cut -c41- | grep -v "requested")
+		echo -n $fmt_DHCP
+		[ -z $if_gateway ] && printf "$dhns_info" | sed -En "s/routers = /\t   Default Gateway:$fmt_IPv4\t/p"
+		echo -n $fmt_DHCP
+		printf "$dhns_info" | sed -En "s/dhcp_server_identifier = /\t       DHCP Server:\t${fmt_IPv4}/p"
+		echo -n $fmt_DHCP
+		exp=$(printf "$dhns_info" | grep 'expiry' | cut -c10-| xargs)
+		#print expiration and convert from Unix epoch format
+		#edit the date command to change date format
+		if [ ! -z $exp ];then
+			echo -en "\t      Lease expiry:\t"; date -d @$exp
+		fi
+		echo -n $fmt_DHCP
+		printf "$dhns_info" | sed -En 's/domain_name = /\t\t  DNS name:\t/p'
+		echo -n $fmt_DHCP
+		DNS_servers=$(printf "$dhns_info" | sed -En "s/domain_name_servers = /${fmt_IPv4}\t/p")
+		[[ -z $DNS_servers ]] || echo -en "\t       DNS servers:"
+		printf "$DNS_servers" | sed -e 's/ /\n\t\t\t\t/'
+		echo $reset
+	elif [[ $all == true ]]
+	then
+		#check each DHCP lease for a matching interface name
+		for lease in ${!leases[@]}
+		do
+			if [[ $line_if == ${if_name[lease]} ]]
+			then
+			#print default gateway if not already found above
+			#print all other DHCP and DNS information
+				echo -n $fmt_DHCP
+				[ -z $if_gateway ] && echo -e "\t   Default Gateway:$fmt_IPv4\t${gateway[lease]}"
+				echo -e $fmt_DHCP"\t       DHCP Server:$fmt_IPv4\t${dhcp[lease]}"
+				echo -e $fmt_DHCP"\t     Lease renewal:\t${renew[lease]}"
+				echo -e $fmt_DHCP"\t      Lease rebind:\t${rebind[lease]}"
+				tmp=${expiry[i]}	#change format to match date -d / nmcli format
+				expiry[i]=$(date -d <<< printf "$tmp")
+				echo -e $fmt_DHCP"\t      Lease expiry:\t${expiry[lease]}"
+				echo -e $fmt_DHCP"\t\t  DNS name:\t${dns_name[lease]}"
+				echo -e $fmt_DHCP"\t       DNS servers:$fmt_IPv4\t${dns[lease]}" | sed -e 's/,/\n\t\t\t\t/'
+				break
+			fi
+		done
+	fi
+	echo $reset
+done
+
+#Print DNS in a separate section from resolv.conf if not already found
+if [[ $leases_not_found == true ]]
+then
+	echo -e "${fmt_header}DNS Info:"
+	echo -n $reset
+	printf "$dns_info" | grep "search" | sed -e 's/search/domain:\t/'
+    printf "$dns_info" | grep nameserver | sed -e "s/nameserver/server:\t${fmt_IPv4}/"
+fi
+
+#####
+#Print loopback
+#####
+[[ $all != true || $if_search == true ]] && exit 0
+ip_lo=$(ip --brief address show | grep "lo.*127\." | cut -c33-)
+if_lo=$(ip --brief link | grep "lo.*00:00:")
+lo_MAC=$(printf "$if_lo" | cut -c33- | sed 's/<.*//g')
+lo_if=$(printf "$if_lo" | cut -c1-8)
+line_ct=$(printf "$if_lo\n" | wc -l)
+
+echo "${fmt_header}Loopback:${reset}$fmt_lo"
+for (( i=1; i<=line_ct; i++ )); do
+	echo -n $lo_if | sed -n ${i}p
+	echo -e "\tIP:\t$ip_lo" | sed -n ${i}p
+	echo -e "\tMAC:\t$lo_MAC" | sed -n ${i}p
+done
+
+echo $reset
