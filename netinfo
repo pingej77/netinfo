@@ -91,12 +91,12 @@ ip_info=$(ip --brief address show | grep -v "lo.*127\.")
 if_info=$(ip --brief link | grep -v "lo.*00:00:")
 
 #allow for search of a specific interface name
-if [[ $if_search == true ]]
-then
-	ip_info=$(printf "$ip_info" | grep -w $1) || if_not_found=true
-	if_info=$(printf "$if_info" | grep -w $1) || if_not_found=true
-fi
-[[ $if_not_found == true ]] && echo -e "interface name not found$reset\n" && exit 1
+#if [[ $if_search == true ]]
+#then
+#	ip_info=$(printf "$ip_info" | grep -w $1) || if_not_found=true
+#	if_info=$(printf "$if_info" | grep -w $1) || if_not_found=true
+#fi
+#[[ $if_not_found == true ]] && echo -e "interface name not found$reset\n" && exit 1
 
 #trim variables to their useful parts
 ip_info=$(printf "$ip_info" | cut -c33-)
@@ -183,14 +183,33 @@ for (( i=1;i <= $line_ct; i++ ))
 do
 	#get status of interface
 	line_stat=$(printf "${if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)
-	#unless 'all' flag is used or interface is searched for explicitly, skip 'DOWN' interfaces
-	if [[ $line_stat != *"UP"* ]] && [[ $all != true ]] && [[ $if_search != true ]]
-	then
-		(( i++ ))
-		line_stat=$(printf "${if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)
-		(( $i > $line_ct )) && break
-	fi
+	#get name of interface
 	line_if=$(printf "$if_info" | sed -n ${i}p | cut -b 1-8 | xargs)
+	echo $line_stat
+	echo $line_if
+	#if searching for a specific interface, skip non-matching interfaces
+	if [[ $if_search == true ]];then
+		while [[ $line_if != $1 ]]
+		do
+			(( i++ ))
+			line_stat=$(printf "$if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)	
+			line_if=$(printf "$if_info" | sed -n ${i}p | cut -b 1-8 | xargs)
+			(( $i > $line_ct )) && break 2
+		done
+	#unless 'all' flag is used or interface is searched for explicitly, skip 'DOWN' interfaces
+	elif [[ $all != true ]] 
+	then
+		while [[ $line_stat != *"UP"* ]]
+		do
+			(( i++ ))
+			line_stat=$(printf "${if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)
+			line_if=$(printf "$if_info" | sed -n ${i}p | cut -b 1-8 | xargs)
+			(( $i > $line_ct )) && break 2
+		done
+	fi
+	if [[ $line_stat == *"UP"* ]]; then
+		line_stat="UP"
+	fi
 	#put each if's IP info in a variable and then put all IP addresses in an array named address
 	line_ip=$(printf "$ip_info" | sed -n ${i}p)
 	address=($line_ip)
