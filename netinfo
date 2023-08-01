@@ -185,8 +185,6 @@ do
 	line_stat=$(printf "${if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)
 	#get name of interface
 	line_if=$(printf "$if_info" | sed -n ${i}p | cut -b 1-8 | xargs)
-	echo $line_stat
-	echo $line_if
 	#if searching for a specific interface, skip non-matching interfaces
 	if [[ $if_search == true ]];then
 		while [[ $line_if != $1 ]]
@@ -207,18 +205,17 @@ do
 			(( $i > $line_ct )) && break 2
 		done
 	fi
-	if [[ $line_stat == *"UP"* ]]; then
-		line_stat="UP"
-	fi
+	[[ $line_stat == *"UP"* ]] && line_stat="UP"
 	#put each if's IP info in a variable and then put all IP addresses in an array named address
 	line_ip=$(printf "$ip_info" | sed -n ${i}p)
 	address=($line_ip)
 	#Header		--spaces, not tabs to keep underline across
-	echo -e "${fmt_header}if ${i}:   Link:   Link-Type:      Status:"
+	echo -e "${fmt_header}if ${i}:    Link:  Link-Type:      Status:"
 	echo -n $reset
 	#print interface name
 	echo -n $fmt_if
-	echo -en "$line_if\t"
+	echo -en "$line_if "
+	[[ ${#line_if} < 8 ]] && printf "\t"
 	tput bold
 	#format and print status of the interface
 	[[ $line_stat == *"UP"* ]] && tput setaf 2 || tput setaf 9	#UP=Green, otherwise=red
@@ -233,8 +230,12 @@ do
 		#print ethernet link speed
 		tmp=$(cat /sys/class/net/$line_if/speed | xargs) && echo "${tmp}Mb/s"
 	elif [[ $line_if == "wl"* ]]; then
-		tput setaf 12			#set the color for WLAN/Wi-Fi (light blue)
-		printf "\tWLAN\t"
+		fmt_wl=$(tput setaf 51)		#set the color for WLAN/Wi-Fi (cyan)
+		printf "${fmt_wl}\twireless"
+		tmp=$(iw $line_if info)
+		printf "$(printf "$tmp" | grep "ssid" | sed "s/ssid/${reset}SSID:$fmt_wl/")"
+		#printf "$tmp2"
+		printf "$tmp" | sed -n "s/.*channel/$reset on channel${fmt_wl}/p" | sed -e 's/,.*//'
 	elif [[ $line_if == "ww"* ]]; then
 		tput setaf 212			#set the color for WWAN/Cellular network (pink)
 		printf "\tcellular"
@@ -249,7 +250,7 @@ do
 	fi
 
 	#print MAC address
-	printf "${fmt_MAC}\tLAN\tMAC address\t"
+	printf "${fmt_MAC}\t LAN\tMAC address\t"
 	printf "$MAC_adr\n" | sed -n ${i}p
 
 	#prints IP addresses for each if and labels each one according to its type
@@ -257,7 +258,7 @@ do
 	do
 		#labelling IPv4 types
 		if [[ ${address[$j]} == *"."* ]]; then
-			printf "${fmt_IPv4}\tIPv4\t"
+			printf "${fmt_IPv4}\t IPv4\t"
 			#label class A and C private ranges
 			if [[ ${address[$j]} == "10."* ]] || [[ ${address[$j]} == "192.168."* ]]; then
 			printf "private"
@@ -271,7 +272,7 @@ do
 			printf "\t\t"
 		#labelling IPv6 types
 		elif [[ ${address[$j]} == *":"* ]]; then
-			printf "${fmt_IPv6}\tIPv6\t"
+			printf "${fmt_IPv6}\t IPv6\t"
 			if [[ ${address[$j]} == "2"???":"* ]];then		#Global Unicast Address
 				printf "global" && long=false
 			elif [[ ${address[$j]} == "fc"??":"* ]];then	#ULA (Unique Local Address)
@@ -306,7 +307,7 @@ do
 	if [[ $all == true && $use_nmcli == true && $line_stat == UP ]]
 	then
 		#get DHCP and DNS information from nmcli
-		line_UUID=$(nmcli con | grep $line_if | cut -c21- | sed 's/ .*//' | xargs)
+		line_UUID=$(nmcli con | grep $line_if | awk -F ' ' '{print $2}' | xargs)
 		dhns_info=$(nmcli con show $line_UUID | grep 'DHCP[46].OPTION' | cut -c41- | grep -v "requested")
 		echo -n $fmt_DHCP
 		[ -z $if_gateway ] && printf "$dhns_info" | sed -En "s/routers = /\t   Default Gateway:$fmt_IPv4\t/p"
