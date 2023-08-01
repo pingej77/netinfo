@@ -291,6 +291,7 @@ do
 		#print IP address & format the mask in default color
 		echo -e "${address[$j]}" | sed -e "s#/#${fmt_mask}/#"
 	done
+	if_found=true
 
 	#get and print network ID; don't print APIPA entry if found
 	netID=$(ip route | grep $line_if | sed -e 's/default via.*//' -e 's/dev.*//' -e 's/169\.254.*//' | xargs)
@@ -361,6 +362,8 @@ then
 	printf "$dns_info" | grep "search" | sed -e 's/search/domain:\t/'
     printf "$dns_info" | grep nameserver | sed -e "s/nameserver/server:\t${fmt_IPv4}/"
 fi
+
+[[ $if_found != true ]] && echo "interface not found" && exit 1
 
 #####
 #Print loopback
