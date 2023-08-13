@@ -22,10 +22,11 @@ fi
 #
 
 #handle arguments
-while getopts "ab" opt;  do
+while getopts "abu" opt;  do
 	case $opt in
 		a) all=true ;;
 		b) brief=true ;;
+		u) print_UUID=true ;;
 	esac
 done
 shift $((OPTIND - 1))
@@ -63,7 +64,7 @@ fmt_IPv4=$(tput setaf 5)	#IPv4 color is purple
 fmt_IPv6=$(tput setaf 4)	#IPv6 color is blue
 fmt_if=$(tput setaf 6;tput bold) #interface is bold and teal
 fmt_MAC=$(tput setaf 11) 	#MAC addr color is yellow
-fmt_DHCP=$(tput setaf 253)	#DHCP and DNS text color is light gray (232-255 are shades of gray)
+fmt_txt=$(tput setaf 253)	#DHCP and DNS text color is light gray (232-255 are shades of gray)
 fmt_mask=$(tput setaf 153)	#Subnet Mask color is periwinkle
 
 #setting input conditions to allow a search by interface name
@@ -233,7 +234,7 @@ do
 		fmt_wl=$(tput setaf 51)		#set the color for WLAN/Wi-Fi (cyan)
 		printf "${fmt_wl}\twireless"
 		tmp=$(iw $line_if info)
-		printf "$(printf "$tmp" | grep "ssid" | sed "s/ssid/${reset}SSID:$fmt_wl/")"
+		printf "$(printf "$tmp" | grep "ssid" | sed "s/ssid/${fmt_txt}SSID:$fmt_wl/")"
 		#printf "$tmp2"
 		printf "$tmp" | sed -n "s/.*channel/$reset on channel${fmt_wl}/p" | sed -e 's/,.*//'
 	elif [[ $line_if == "ww"* ]]; then
@@ -295,35 +296,36 @@ do
 
 	#get and print network ID; don't print APIPA entry if found
 	netID=$(ip route | grep $line_if | sed -e 's/default via.*//' -e 's/dev.*//' -e 's/169\.254.*//' | xargs)
-	[ -z $netID ] || echo -e $fmt_DHCP"\t\tNetwork ID:$fmt_IPv4\t$netID" | sed -e "s#/#${fmt_mask}/#"
+	[ -z $netID ] || echo -e $fmt_txt"\t\tNetwork ID:$fmt_IPv4\t$netID" | sed -e "s#/#${fmt_mask}/#"
 	#print default gateway
 	if_gateway=$(ip route | grep $line_if | grep "default via" | sed 's/default via //' | sed -e 's/dev.*//' | xargs)
-	[ -z $if_gateway ] || echo -e "\t   ${fmt_DHCP}Default Gateway:${fmt_IPv4}\t$if_gateway"
+	[ -z $if_gateway ] || echo -e "\t   ${fmt_txt}Default Gateway:${fmt_IPv4}\t$if_gateway"
 	
 	####
 	#DNS and DHCP information
 	####
 
+	line_UUID=$(nmcli con | grep $line_if | awk -F ' ' '{print $2}' | xargs)
+	
 	#if nmcli is able to be used; use it
 	if [[ $all == true && $use_nmcli == true && $line_stat == UP ]]
 	then
 		#get DHCP and DNS information from nmcli
-		line_UUID=$(nmcli con | grep $line_if | awk -F ' ' '{print $2}' | xargs)
 		dhns_info=$(nmcli con show $line_UUID | grep 'DHCP[46].OPTION' | cut -c41- | grep -v "requested")
-		echo -n $fmt_DHCP
+		echo -n $fmt_txt
 		[ -z $if_gateway ] && printf "$dhns_info" | sed -En "s/routers = /\t   Default Gateway:$fmt_IPv4\t/p"
-		echo -n $fmt_DHCP
+		echo -n $fmt_txt
 		printf "$dhns_info" | sed -En "s/dhcp_server_identifier = /\t       DHCP Server:\t${fmt_IPv4}/p"
-		echo -n $fmt_DHCP
+		echo -n $fmt_txt
 		exp=$(printf "$dhns_info" | grep 'expiry' | cut -c10-| xargs)
 		#print expiration and convert from Unix epoch format
 		#edit the date command to change date format
 		if [ ! -z $exp ];then
 			echo -en "\t      Lease expiry:\t"; date -d @$exp
 		fi
-		echo -n $fmt_DHCP
+		echo -n $fmt_txt
 		printf "$dhns_info" | sed -En 's/domain_name = /\t\t  DNS name:\t/p'
-		echo -n $fmt_DHCP
+		echo -n $fmt_txt
 		DNS_servers=$(printf "$dhns_info" | sed -En "s/domain_name_servers = /${fmt_IPv4}\t/p")
 		[[ -z $DNS_servers ]] || echo -en "\t       DNS servers:"
 		printf "$DNS_servers" | sed -e 's/ /\n\t\t\t\t/'
@@ -337,20 +339,22 @@ do
 			then
 			#print default gateway if not already found above
 			#print all other DHCP and DNS information
-				echo -n $fmt_DHCP
+				echo -n $fmt_txt
 				[ -z $if_gateway ] && echo -e "\t   Default Gateway:$fmt_IPv4\t${gateway[lease]}"
-				echo -e $fmt_DHCP"\t       DHCP Server:$fmt_IPv4\t${dhcp[lease]}"
-				echo -e $fmt_DHCP"\t     Lease renewal:\t${renew[lease]}"
-				echo -e $fmt_DHCP"\t      Lease rebind:\t${rebind[lease]}"
+				echo -e $fmt_txt"\t       DHCP Server:$fmt_IPv4\t${dhcp[lease]}"
+				echo -e $fmt_txt"\t     Lease renewal:\t${renew[lease]}"
+				echo -e $fmt_txt"\t      Lease rebind:\t${rebind[lease]}"
 				tmp=${expiry[i]}	#change format to match date -d / nmcli format
 				expiry[i]=$(date -d <<< printf "$tmp")
-				echo -e $fmt_DHCP"\t      Lease expiry:\t${expiry[lease]}"
-				echo -e $fmt_DHCP"\t\t  DNS name:\t${dns_name[lease]}"
-				echo -e $fmt_DHCP"\t       DNS servers:$fmt_IPv4\t${dns[lease]}" | sed -e 's/,/\n\t\t\t\t/'
+				echo -e $fmt_txt"\t      Lease expiry:\t${expiry[lease]}"
+				echo -e $fmt_txt"\t\t  DNS name:\t${dns_name[lease]}"
+				echo -e $fmt_txt"\t       DNS servers:$fmt_IPv4\t${dns[lease]}" | sed -e 's/,/\n\t\t\t\t/'
 				break
 			fi
 		done
 	fi
+	echo -n $fmt_txt
+	[[ $print_UUID == true ]] && echo -e "\t\t      UUID:\t$line_UUID"
 	echo $reset
 done
 
