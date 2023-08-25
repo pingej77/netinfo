@@ -279,10 +279,16 @@ do
 		fi
 	done
 	if_found=true
+	
+	#get and print UUID
+	line_UUID=$(nmcli con | grep $line_if | awk -F ' ' '{print $2}' | xargs)
+	echo -n $fmt_txt
+	[[ $print_UUID == true ]] && echo -e "\t\t      UUID:\t$line_UUID"
 
 	#get and print network ID; don't print APIPA entry if found
 	netID=$(ip route | grep $line_if | sed -e 's/default via.*//' -e 's/dev.*//' -e 's/169\.254.*//' | xargs)
 	[ -z $netID ] || echo -e $fmt_txt"\t\tNetwork ID:$fmt_IPv4\t$netID" | sed -e "s#/#${fmt_mask}/#"
+
 	#print default gateway
 	if_gateway=$(ip route | grep $line_if | grep "default via" | sed 's/default via //' | sed -e 's/dev.*//' | xargs)
 	[ -z $if_gateway ] || echo -e "\t   ${fmt_txt}Default Gateway:${fmt_IPv4}\t$if_gateway"
@@ -291,11 +297,10 @@ do
 		v6_gateway=$(ip -6 r | grep $line_if | grep "default via" | sed 's/default via //' | sed -e 's/dev.*//' | xargs)
 		echo -e "\t${fmt_txt}      IPv6 Gateway:${fmt_IPv6}\t$v6_gateway"
 	fi
+
 	####
 	#DNS and DHCP information
 	####
-
-	line_UUID=$(nmcli con | grep $line_if | awk -F ' ' '{print $2}' | xargs)
 	
 	#if nmcli is able to be used; use it
 	if [[ $all == true && $use_nmcli == true && $line_stat == UP ]]
@@ -349,8 +354,7 @@ do
 			fi
 		done
 	fi
-	echo -n $fmt_txt
-	[[ $print_UUID == true ]] && echo -e "\t\t      UUID:\t$line_UUID"
+
 	echo $reset
 done
 
