@@ -22,11 +22,14 @@ fi
 #
 
 #handle arguments
-while getopts "abu" opt;  do
+while getopts "abu46A" opt;  do
 	case $opt in
 		a) all=true ;;
 		b) brief=true ;;
 		u) print_UUID=true ;;
+		4) skip_6=true ;;
+		6) incl_6=true ;;
+		A) all=true; print_UUID=true; incl_6=true ;;
 	esac
 done
 shift $((OPTIND - 1))
@@ -45,15 +48,6 @@ if [[ $brief == true ]];then
 	done
 	exit 0
 fi
-
-
-#Plan:  Heading on each interface with if number.  Put if name on far left
-#add speed to a column somewhere using ethtool $line_if | grep Speed
-#wireless use iwconfig and maybe put bit rate and frequency?
-#or lshw -class network | grep capacity
-#something like:
-#if 1          Link-type:    Status:
-#enp0s3  UP    ethernet      1000Mb/s
 
 
 #colors for link-types (ethernet, Wi-Fi, etc.) are established later, in-context
@@ -91,13 +85,6 @@ fi
 ip_info=$(ip --brief address show | grep -v "lo.*127\.")
 if_info=$(ip --brief link | grep -v "lo.*00:00:")
 
-#allow for search of a specific interface name
-#if [[ $if_search == true ]]
-#then
-#	ip_info=$(printf "$ip_info" | grep -w $1) || if_not_found=true
-#	if_info=$(printf "$if_info" | grep -w $1) || if_not_found=true
-#fi
-#[[ $if_not_found == true ]] && echo -e "interface name not found$reset\n" && exit 1
 
 #trim variables to their useful parts
 ip_info=$(printf "$ip_info" | cut -c33-)
@@ -235,7 +222,6 @@ do
 		printf "${fmt_wl}\twireless"
 		tmp=$(iw $line_if info)
 		printf "$(printf "$tmp" | grep "ssid" | sed "s/ssid/${fmt_txt}SSID:$fmt_wl/")"
-		#printf "$tmp2"
 		printf "$tmp" | sed -n "s/.*channel/$reset on channel${fmt_wl}/p" | sed -e 's/,.*//'
 	elif [[ $line_if == "ww"* ]]; then
 		tput setaf 212			#set the color for WWAN/Cellular network (pink)
@@ -271,8 +257,9 @@ do
 				printf "global"
 			fi
 			printf "\t\t"
+			echo -e "${address[$j]}" | sed -e "s#/#${fmt_mask}/#"
 		#labelling IPv6 types
-		elif [[ ${address[$j]} == *":"* ]]; then
+		elif [[ ${address[$j]} == *":"* && $skip_6 != true ]]; then
 			printf "${fmt_IPv6}\t IPv6\t"
 			if [[ ${address[$j]} == "2"???":"* ]];then		#Global Unicast Address
 				printf "global" && long=false
@@ -288,9 +275,8 @@ do
 				printf "multicast" && long=true
 			fi
 			[[ $long == true ]] && printf "\t" || printf "\t\t" 	# 1 tab for long text, 2 for short
+			echo -e "${address[$j]}" | sed -e "s#/#${fmt_mask}/#"
 		fi
-		#print IP address & format the mask in default color
-		echo -e "${address[$j]}" | sed -e "s#/#${fmt_mask}/#"
 	done
 	if_found=true
 
@@ -300,7 +286,11 @@ do
 	#print default gateway
 	if_gateway=$(ip route | grep $line_if | grep "default via" | sed 's/default via //' | sed -e 's/dev.*//' | xargs)
 	[ -z $if_gateway ] || echo -e "\t   ${fmt_txt}Default Gateway:${fmt_IPv4}\t$if_gateway"
-	
+	if [[ $incl_6 == true ]]
+	then
+		v6_gateway=$(ip -6 r | grep $line_if | grep "default via" | sed 's/default via //' | sed -e 's/dev.*//' | xargs)
+		echo -e "\t${fmt_txt}      IPv6 Gateway:${fmt_IPv6}\t$v6_gateway"
+	fi
 	####
 	#DNS and DHCP information
 	####
@@ -327,9 +317,15 @@ do
 		printf "$dhns_info" | sed -En 's/domain_name = /\t\t  DNS name:\t/p'
 		echo -n $fmt_txt
 		DNS_servers=$(printf "$dhns_info" | sed -En "s/domain_name_servers = /${fmt_IPv4}\t/p")
-		[[ -z $DNS_servers ]] || echo -en "\t       DNS servers:"
-		printf "$DNS_servers" | sed -e 's/ /\n\t\t\t\t/'
-		echo $reset
+		[[ -z $DNS_servers ]] || echo -en "\t       DNS servers:" && \
+			printf "$DNS_servers" | sed -e 's/ /\n\t\t\t\t/'
+		if [[ $incl_6 == true ]]; then
+			echo $fmt_txt
+			DNS6=$(printf "$dhns_info" | sed -En "s/dhcp6_name_servers = /${fmt_IPv6}\t/p")
+			[[ -z $DNS6 ]] || echo -en "\t  IPv6 DNS servers:" && \
+				printf "$DNS6" | sed -e 's/ /\n\t\t\t\t/'
+		fi
+		echo ""
 	elif [[ $all == true ]]
 	then
 		#check each DHCP lease for a matching interface name
