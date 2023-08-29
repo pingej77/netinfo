@@ -4,8 +4,12 @@
 if [[ $1 == "--help" || $1 == "?" ]]; then
 	echo "This program prints network and network interface information"
 	echo -e "Passing no options shows network info and MAC and IP info for each online interface\n"
-	echo "Use b, -b, -br, or --brief to only show basic router and IP address info"
-	echo "Use a, -a, -all, or --all to show all interfaces with DHCP and DNS info"
+	echo "Use -b to only show basic router and IP address info"
+	echo "Use -a to include DHCP and DNS information and all online and offline interfaces"
+	echo "Use -u to show interface UUID"
+	echo "Use -4 to only show IPv4 information"
+	echo "Use -6 to show IPv6 information for gateway and DNS"
+	echo "Use -A to show all information for all interfaces (same as -au6)"
 	echo "This command does not support multiple switches; they are mutually exclusive."
 	echo -e "\nColors can be easily changed by editing the script file"
 	echo "ip information requires the ip command to be installed."
@@ -37,7 +41,7 @@ shift $((OPTIND - 1))
 
 #the 'brief' command
 if [[ $brief == true ]];then
-	ip=$(ip --color -br addr | grep "UP")
+	ip=$(ip --color -br -4 addr | grep "UP")
 	route=$(ip --color route | grep "default via" | sed 's/proto.*//')
 	line_ct=$(printf "$ip\n" | wc -l)
 	for (( i=1;i <= $line_ct; i++ ))
