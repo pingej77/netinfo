@@ -43,12 +43,15 @@ shift $((OPTIND - 1))
 if [[ $brief == true ]];then
 	ip=$(ip --color -br -4 addr | grep "UP")
 	route=$(ip --color route | grep "default via" | sed 's/proto.*//')
+	MAC=$(ip -br link | cut -c33- | sed 's/<.*//g')
 	line_ct=$(printf "$ip\n" | wc -l)
 	for (( i=1;i <= $line_ct; i++ ))
 	do
-		printf "$ip\n" | sed -n ${i}p
-		printf "\t"
-		printf "$route\n" | sed -n ${i}p
+		printf "$ip\n" | sed -n ${i}p | sed -e 's/UP\s/UP\n     /'
+		tput setaf 11
+		printf "\t\t $MAC\n" | sed -n ${i}p
+		tput sgr0
+		printf "\t\t $route\n" | sed -n ${i}p
 	done
 	exit 0
 fi
