@@ -1,6 +1,6 @@
 # netinfo
 Bash script to provide network information in a  dense, legible, and useful way. <br>
-Lists MAC, IP addresses, network ID, and default gateway by default.  Includes DHCP and DNS information with options.
+Lists MAC, IP addresses, network ID, and default gateway by default.  Includes DHCP and DNS information plus UUID with options.
 
 <b>Options:</b>
     <br>-a  show all online and offline interfaces and include DNS and DCHP information
