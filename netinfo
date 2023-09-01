@@ -9,7 +9,8 @@ if [[ $1 == "--help" || $1 == "?" ]]; then
 	echo "Use -u to show interface UUID"
 	echo "Use -4 to only show IPv4 information"
 	echo "Use -6 to show IPv6 information for gateway and DNS"
-	echo "Use -A to show all information for all interfaces (same as -au6)"
+	echo "Use -p to find the IPv4 public-facing address if NAT is being used"
+	echo "Use -A to show all information for all interfaces (same as -aup6)"
 	echo "This command does not support multiple switches; they are mutually exclusive."
 	echo -e "\nColors can be easily changed by editing the script file"
 	echo "ip information requires the ip command to be installed."
@@ -26,14 +27,15 @@ fi
 #
 
 #handle arguments
-while getopts "adu46A" opt;  do
+while getopts "adu46pA" opt;  do
 	case $opt in
 		a) all=true ;;
 		d) dhcp_dns=true ;;
 		u) print_UUID=true ;;
 		4) skip_6=true ;;
 		6) incl_6=true ;;
-		A) all=true; print_UUID=true; incl_6=true ;;
+		p) find_public=true ;;
+		A) all=true; print_UUID=true; find_public=true; incl_6=true ;;
 	esac
 done
 shift $((OPTIND - 1))
@@ -269,6 +271,11 @@ do
 	done
 	if_found=true
 	
+	if [[ $find_public == true ]]; then
+		nat=$(host -4 myip.opendns.com resolver1.opendns.com | sed -n 's/myip.opendns.com has address //p')
+		echo -e $fmt_txt"\t  Public IPv4 addr:${fmt_IPv4}\t$nat"
+	fi
+
 	#get and print UUID
 	line_UUID=$(nmcli con | grep $line_if | awk -F ' ' '{print $2}' | xargs)
 	echo -n $fmt_txt

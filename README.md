@@ -8,6 +8,7 @@ Lists MAC, IP addresses, network ID, and default gateway by default.  Includes D
 <br>&nbsp;&nbsp;-u &nbsp; include UUID
 <br>&nbsp;&nbsp;-4 &nbsp; only show IPv4 addresses
 <br>&nbsp;&nbsp;-6 &nbsp; include IPv6 addresses for gateway and DNS
+<br>%nbsp;&nbsp;-p &nbsp; find the public-facing IPv4 address (for use with NAT)
 <br>&nbsp;&nbsp;-A &nbsp; show all (equivalent to -au6)
 
 <b>Dependencies:</b><br>
@@ -18,5 +19,5 @@ Lists MAC, IP addresses, network ID, and default gateway by default.  Includes D
 
 You can also search for specific interface names by passing it as an argument.  Search using wildcards as well to find certain types of interfaces.  Quotes necessary for zsh. <br>
 Examples:<br>
-&nbsp;&nbsp;&nbsp;&nbsp;bash:  `netinfo wl*` <br>
-&nbsp;&nbsp;&nbsp;&nbsp;zsh:&nbsp;&nbsp;  `netinfo "wl*"`
+&emsp; bash:  `netinfo wl*` <br>
+&emsp; zsh:&nbsp;&nbsp;  `netinfo "wl*"`
