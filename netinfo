@@ -4,8 +4,8 @@
 if [[ $1 == "--help" || $1 == "?" ]]; then
 	echo "This program prints network and network interface information"
 	echo -e "Passing no options shows network info and MAC and IP info for each online interface\n"
-	echo "Use -b to only show basic router and IP address info"
 	echo "Use -a to include DHCP and DNS information and all online and offline interfaces"
+	echo "Use -d to include DHCP and DNS information without showing offline interfaces"
 	echo "Use -u to show interface UUID"
 	echo "Use -4 to only show IPv4 information"
 	echo "Use -6 to show IPv6 information for gateway and DNS"
@@ -26,10 +26,10 @@ fi
 #
 
 #handle arguments
-while getopts "abu46A" opt;  do
+while getopts "adu46A" opt;  do
 	case $opt in
 		a) all=true ;;
-		b) brief=true ;;
+		d) dhcp_dns=true ;;
 		u) print_UUID=true ;;
 		4) skip_6=true ;;
 		6) incl_6=true ;;
@@ -37,24 +37,6 @@ while getopts "abu46A" opt;  do
 	esac
 done
 shift $((OPTIND - 1))
-
-
-#the 'brief' command
-if [[ $brief == true ]];then
-	ip=$(ip --color -br -4 addr | grep "UP")
-	route=$(ip --color route | grep "default via" | sed 's/proto.*//')
-	MAC=$(ip -br link | cut -c33- | sed 's/<.*//g')
-	line_ct=$(printf "$ip\n" | wc -l)
-	for (( i=1;i <= $line_ct; i++ ))
-	do
-		printf "$ip\n" | sed -n ${i}p | sed -e 's/UP\s/UP\n     /'
-		tput setaf 11
-		printf "\t\t $MAC\n" | sed -n ${i}p
-		tput sgr0
-		printf "\t\t $route\n" | sed -n ${i}p
-	done
-	exit 0
-fi
 
 
 #colors for link-types (ethernet, Wi-Fi, etc.) are established later, in-context
@@ -310,7 +292,7 @@ do
 	####
 	
 	#if nmcli is able to be used; use it
-	if [[ $all == true && $use_nmcli == true && $line_stat == UP ]]
+	if [[ ($all == true || $dhcp_dns == true) && $use_nmcli == true && $line_stat == UP ]]
 	then
 		#get DHCP and DNS information from nmcli
 		dhns_info=$(nmcli con show $line_UUID | grep 'DHCP[46].OPTION' | cut -c41- | grep -v "requested")
@@ -338,7 +320,7 @@ do
 				printf "$DNS6" | sed -e 's/ /\n\t\t\t\t/'
 		fi
 		echo ""
-	elif [[ $all == true ]]
+	elif [[ $all == true || $dhcp_dns == true ]]
 	then
 		#check each DHCP lease for a matching interface name
 		for lease in ${!leases[@]}
