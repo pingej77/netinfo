@@ -9,7 +9,7 @@ Lists MAC, IP addresses, network ID, and default gateway by default.  Includes D
 <br>&nbsp;&nbsp;-4 &nbsp; only show IPv4 addresses
 <br>&nbsp;&nbsp;-6 &nbsp; include IPv6 addresses for gateway and DNS
 <br>&nbsp;&nbsp;-p &nbsp; find the public-facing IPv4 address (for use with NAT)
-<br>&nbsp;&nbsp;-A &nbsp; show all (equivalent to -au6)
+<br>&nbsp;&nbsp;-A &nbsp; show all (equivalent to -aup6)
 
 <b>Dependencies:</b><br>
 &nbsp;&nbsp;ip <br>
