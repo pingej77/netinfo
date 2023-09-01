@@ -210,7 +210,7 @@ do
 		tmp=$(cat /sys/class/net/$line_if/speed | xargs) && echo "${tmp}Mb/s"
 	elif [[ $line_if == "wl"* ]]; then
 		fmt_wl=$(tput setaf 51)		#set the color for WLAN/Wi-Fi (cyan)
-		printf "${fmt_wl}\twireless"
+		printf "${fmt_wl}\tWi-Fi\t"
 		tmp=$(iw $line_if info)
 		printf "$(printf "$tmp" | grep "ssid" | sed "s/ssid/${fmt_txt}SSID:$fmt_wl/")"
 		printf "$tmp" | sed -n "s/.*channel/$reset on channel${fmt_wl}/p" | sed -e 's/,.*//'
