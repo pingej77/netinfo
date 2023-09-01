@@ -273,7 +273,7 @@ do
 	
 	if [[ $find_public == true ]]; then
 		nat=$(host -4 myip.opendns.com resolver1.opendns.com | sed -n 's/myip.opendns.com has address //p')
-		echo -e $fmt_txt"\t  Public IPv4 addr:${fmt_IPv4}\t$nat"
+		[ -z $nat ] || echo -e $fmt_txt"\t  Public IPv4 addr:${fmt_IPv4}\t$nat"
 	fi
 
 	#get and print UUID
