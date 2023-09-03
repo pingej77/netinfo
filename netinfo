@@ -15,9 +15,8 @@ if [[ $1 == "--help" || $1 == "?" ]]; then
 	echo "ip information requires the ip command to be installed."
 	echo "dhcp and dns information requires nmcli to be installed."
 	echo -e "\nThe command makes use of the 'ip' command to fetch the system's IP and MAC address"
-	echo "The DHCP and DNS information is fetched from the dhclient.leases file"
-	echo "The location of this file may vary between distributions, and may not be present at all"
-	echo "if systemd is not in use."
+	echo "The DHCP and DNS information is fetched from either nmcli or the dhclient.leases file"
+	echo "iw is used for Wi-Fi information"
 	exit 0
 fi
 
