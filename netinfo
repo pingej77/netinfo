@@ -11,7 +11,6 @@ if [[ $1 == "--help" || $1 == "?" ]]; then
 	echo "Use -6 to show IPv6 information for gateway and DNS"
 	echo "Use -p to find the IPv4 public-facing address if NAT is being used"
 	echo "Use -A to show all information for all interfaces (same as -aup6)"
-	echo "This command does not support multiple switches; they are mutually exclusive."
 	echo -e "\nColors can be easily changed by editing the script file"
 	echo "ip information requires the ip command to be installed."
 	echo "dhcp and dns information requires nmcli to be installed."
