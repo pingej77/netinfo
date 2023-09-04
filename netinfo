@@ -289,7 +289,7 @@ do
 	if [[ $incl_6 == true ]]
 	then
 		v6_gateway=$(ip -6 r | grep $line_if | grep "default via" | sed 's/default via //' | sed -e 's/dev.*//' | xargs)
-		echo -e "\t${fmt_txt}      IPv6 Gateway:${fmt_IPv6}\t$v6_gateway"
+		[ -z $v6_gateway ] || echo -e "\t${fmt_txt}      IPv6 Gateway:${fmt_IPv6}\t$v6_gateway"
 	fi
 
 	####
