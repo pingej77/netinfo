@@ -319,9 +319,8 @@ do
 		[[ -z $DNS_servers ]] || echo -en "\t       DNS servers:" && \
 			printf "$DNS_servers" | sed -e 's/ /\n\t\t\t\t/'
 		if [[ $incl_6 == true ]]; then
-			echo $fmt_txt
 			DNS6=$(printf "$dhns_info" | sed -En "s/dhcp6_name_servers = /${fmt_IPv6}\t/p")
-			[[ -z $DNS6 ]] || echo -en "\t  IPv6 DNS servers:" && \
+			[[ -z $DNS6 ]] || echo -en "$fmt_txt\n\t  IPv6 DNS servers:" && \
 				printf "$DNS6" | sed -e 's/ /\n\t\t\t\t/'
 		fi
 		echo ""
