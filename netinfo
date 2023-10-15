@@ -162,7 +162,6 @@ do
 	line_stat=$(printf "${if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)
 	#get name of interface
 	line_if=$(printf "$if_info" | sed -n ${i}p | cut -d ' ' -f 1 | xargs)
-	echo "${fmt_txt}}$line_if"
 	#if searching for a specific interface, skip non-matching interfaces
 	if [[ $if_search == true ]];then
 		while [[ $line_if != $1 ]]
