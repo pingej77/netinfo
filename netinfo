@@ -45,7 +45,7 @@ fmt_header=$(tput smul;tput bold;tput setaf 67)	#headers are underlined, bold, a
 fmt_lo=$(tput setaf 8)		#loopback is gray
 fmt_IPv4=$(tput setaf 5)	#IPv4 color is purple
 fmt_IPv6=$(tput setaf 4)	#IPv6 color is blue
-fmt_if=$(tput setaf 6;tput bold) #interface is bold and teal
+fmt_if=$(tput setaf 6) 		#interface is bold and teal
 fmt_MAC=$(tput setaf 11) 	#MAC addr color is yellow
 fmt_txt=$(tput setaf 253)	#DHCP and DNS text color is light gray (232-255 are shades of gray)
 fmt_mask=$(tput setaf 153)	#Subnet Mask color is periwinkle
@@ -161,7 +161,8 @@ do
 	#get status of interface
 	line_stat=$(printf "${if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)
 	#get name of interface
-	line_if=$(printf "$if_info" | sed -n ${i}p | cut -b 1-8 | xargs)
+	line_if=$(printf "$if_info" | sed -n ${i}p | cut -d ' ' -f 1 | xargs)
+	echo "${fmt_txt}}$line_if"
 	#if searching for a specific interface, skip non-matching interfaces
 	if [[ $if_search == true ]];then
 		while [[ $line_if != $1 ]]
@@ -194,35 +195,43 @@ do
 	echo -en "$line_if "
 	[[ ${#line_if} < 8 ]] && printf "\t"
 	tput bold
-	#format and print status of the interface
-	[[ $line_stat == *"UP"* ]] && tput setaf 2 || tput setaf 9	#UP=Green, otherwise=red
-	echo -n ${line_stat}$reset
+	#format and print status of the interface if there is room
+	if (( ${#line_if} < 10 )); then
+		[[ $line_stat == *"UP"* ]] && tput setaf 2 || tput setaf 9	#UP=Green, otherwise=red
+		echo -en "${line_stat}$reset\t"
+	fi
 	
 	#print interface type based on systemd naming convention
 	#backwards compatible with old convention for ethernet and Wi-Fi but not others
 	echo -n $reset
 	if [[ $line_if =~ ^en.*|^eth.* ]]; then
 		tput setaf 3			#set the color for ethernet (orange)
-		printf "\tethernet\t"
+		printf "ethernet\t"
 		#print ethernet link speed
 		tmp=$(cat /sys/class/net/$line_if/speed | xargs) && echo "${tmp}Mb/s"
 	elif [[ $line_if == "wl"* ]]; then
 		fmt_wl=$(tput setaf 51)		#set the color for WLAN/Wi-Fi (cyan)
-		printf "${fmt_wl}\tWi-Fi\t"
+		printf "${fmt_wl}Wi-Fi\t"
 		tmp=$(iw $line_if info)
 		printf "$(printf "$tmp" | grep "ssid" | sed "s/ssid/${fmt_txt}SSID:$fmt_wl/")"
 		printf "$tmp" | sed -n "s/.*channel/$reset on channel${fmt_wl}/p" | sed -e 's/,.*//'
 	elif [[ $line_if == "ww"* ]]; then
 		tput setaf 212			#set the color for WWAN/Cellular network (pink)
-		printf "\tcellular"
+		printf "cellular"
 	elif [[ $line_if == "ib"* ]]; then
 		tput setaf 2			#set the color for infiniband (green)
-		printf "\tinfiniband"
+		printf "infiniband"
 	elif [[ $line_if == "sl"* ]]; then
 		tput setaf 20			#set the color for serial line IP (dark blue)
-		printf "\tserial\t"
+		printf "serial\t"
 	else
-		printf "\tunknown"
+		printf "unknown"
+	fi
+	#print status on next line in the case of an extra-long interface name
+	if (( ${#line_if} > 9 )); then
+		tput bold
+		[[ $line_stat == *"UP"* ]] && tput setaf 2 || tput setaf 9	#UP=Green, otherwise=red
+		echo -n ${line_stat}$reset
 	fi
 
 	#print MAC address
@@ -271,11 +280,11 @@ do
 	
 	if [[ $find_public == true ]]; then
 		nat=$(host -4 myip.opendns.com resolver1.opendns.com | sed -n 's/myip.opendns.com has address //p')
-		[ -z $nat ] || echo -e $fmt_txt"\t  Public IPv4 addr:${fmt_IPv4}\t$nat"
+		[ -z $nat ] || echo -e "${fmt_IPv4}\t IPv4\tNAT public\t$nat"
 	fi
 
 	#get and print UUID
-	line_UUID=$(nmcli con | grep $line_if | awk -F ' ' '{print $2}' | xargs)
+	line_UUID=$(nmcli con | grep $line_if | sed -e 's/[[:alnum:]] [[:alnum:]]//g' | awk -F ' ' '{print $2}' | xargs)
 	echo -n $fmt_txt
 	[[ $print_UUID == true ]] && echo -e "\t\t      UUID:\t$line_UUID"
 
@@ -322,6 +331,10 @@ do
 			DNS6=$(printf "$dhns_info" | sed -En "s/dhcp6_name_servers = /${fmt_IPv6}\t/p")
 			[[ -z $DNS6 ]] || echo -en "$fmt_txt\n\t  IPv6 DNS servers:" && \
 				printf "$DNS6" | sed -e 's/ /\n\t\t\t\t/'
+			duid=$(printf "$dhns_info" | sed -En "s/dhcp6_client_id = /${fmt_Ipv6}/p")
+			[[ -z $duid ]] || echo -en "$fmt_txt\n\t\t     DUID:\t$duid"
+			iaid=$(printf "$dhns_info" | sed -En "s/iaid = //p")
+			[[ -z $iaid ]] || echo -en "$fmt_txt\n\t\t     IAID:\t$iaid"
 		fi
 		echo ""
 	elif [[ $all == true || $dhcp_dns == true ]]
