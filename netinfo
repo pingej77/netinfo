@@ -45,7 +45,7 @@ fmt_header=$(tput smul;tput bold;tput setaf 67)	#headers are underlined, bold, a
 fmt_lo=$(tput setaf 8)		#loopback is gray
 fmt_IPv4=$(tput setaf 5)	#IPv4 color is purple
 fmt_IPv6=$(tput setaf 4)	#IPv6 color is blue
-fmt_if=$(tput setaf 6) 		#interface is bold and teal
+fmt_if=$(tput setaf 6;tput bold)	#interface is bold and teal
 fmt_MAC=$(tput setaf 11) 	#MAC addr color is yellow
 fmt_txt=$(tput setaf 253)	#DHCP and DNS text color is light gray (232-255 are shades of gray)
 fmt_mask=$(tput setaf 153)	#Subnet Mask color is periwinkle
@@ -192,14 +192,17 @@ do
 	#print interface name
 	echo -n $fmt_if
 	echo -en "$line_if "
-	[[ ${#line_if} < 8 ]] && printf "\t"
-	tput bold
-	#format and print status of the interface if there is room
-	if (( ${#line_if} < 10 )); then
-		[[ $line_stat == *"UP"* ]] && tput setaf 2 || tput setaf 9	#UP=Green, otherwise=red
-		echo -en "${line_stat}$reset\t"
+	#push to new line if interface name is too long
+	if (( ${#line_if} < 8)); then
+		printf "\t"
+	elif (( ${#line_if} >= 10));then
+		printf "\n\t "
 	fi
-	
+	#print and format if status: UP/DOWN
+	tput bold
+	[[ $line_stat == *"UP"* ]] && tput setaf 2 || tput setaf 9	#UP=Green, otherwise=red
+	echo -en "${line_stat}$reset\t"
+		
 	#print interface type based on systemd naming convention
 	#backwards compatible with old convention for ethernet and Wi-Fi but not others
 	echo -n $reset
@@ -225,12 +228,6 @@ do
 		printf "serial\t"
 	else
 		printf "unknown"
-	fi
-	#print status on next line in the case of an extra-long interface name
-	if (( ${#line_if} > 9 )); then
-		tput bold
-		[[ $line_stat == *"UP"* ]] && tput setaf 2 || tput setaf 9	#UP=Green, otherwise=red
-		echo -n ${line_stat}$reset
 	fi
 
 	#print MAC address
