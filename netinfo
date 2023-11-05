@@ -159,7 +159,7 @@ echo $reset
 for (( i=1;i <= $line_ct; i++ ))
 do
 	#get status of interface
-	line_stat=$(printf "${if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)
+	line_stat=$(printf "${if_info}" | sed -n ${i}p | tr -s ' ' | cut -d ' ' -sf 2 | xargs)
 	#get name of interface
 	line_if=$(printf "$if_info" | sed -n ${i}p | cut -d ' ' -f 1 | xargs)
 	#if searching for a specific interface, skip non-matching interfaces
@@ -167,8 +167,8 @@ do
 		while [[ $line_if != $1 ]]
 		do
 			(( i++ ))
-			line_stat=$(printf "$if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)	
-			line_if=$(printf "$if_info" | sed -n ${i}p | cut -b 1-8 | xargs)
+			line_stat=$(printf "$if_info}" | sed -n ${i}p | tr -s ' ' | -d ' 'cut -f 2 | xargs)	
+			line_if=$(printf "$if_info" | sed -n ${i}p | cut -d ' '-f 1 | xargs)
 			(( $i > $line_ct )) && break 2
 		done
 	#unless 'all' flag is used or interface is searched for explicitly, skip 'DOWN' interfaces
@@ -177,8 +177,8 @@ do
 		while [[ $line_stat != *"UP"* ]]
 		do
 			(( i++ ))
-			line_stat=$(printf "${if_info}" | sed -n ${i}p | cut -b 8-30 | xargs)
-			line_if=$(printf "$if_info" | sed -n ${i}p | cut -b 1-8 | xargs)
+			line_stat=$(printf "${if_info}" | sed -n ${i}p | tr -s ' ' | cut -d ' '  -f 2 | xargs)
+			line_if=$(printf "$if_info" | sed -n ${i}p | cut -d ' ' -f 1 | xargs)
 			(( $i > $line_ct )) && break 2
 		done
 	fi
@@ -210,13 +210,13 @@ do
 		tput setaf 3			#set the color for ethernet (orange)
 		printf "ethernet\t"
 		#print ethernet link speed
-		tmp=$(cat /sys/class/net/$line_if/speed | xargs) && echo "${tmp}Mb/s"
+		tmp=$(cat /sys/class/net/$line_if/speed | xargs) && echo -n "${tmp}Mb/s"
 	elif [[ $line_if == "wl"* ]]; then
 		fmt_wl=$(tput setaf 51)		#set the color for WLAN/Wi-Fi (cyan)
 		printf "${fmt_wl}Wi-Fi\t"
 		tmp=$(iw $line_if info)
 		printf "$(printf "$tmp" | grep "ssid" | sed "s/ssid/${fmt_txt}SSID:$fmt_wl/")"
-		printf "$tmp" | sed -n "s/.*channel/$reset on channel${fmt_wl}/p" | sed -e 's/,.*//'
+		printf "$tmp" | sed -n "s/.*channel/$reset on channel${fmt_wl}/p" | sed -e 's/,.*//' | tr -d '\n'
 	elif [[ $line_if == "ww"* ]]; then
 		tput setaf 212			#set the color for WWAN/Cellular network (pink)
 		printf "cellular"
@@ -231,7 +231,7 @@ do
 	fi
 
 	#print MAC address
-	printf "${fmt_MAC}\t LAN\tMAC address\t"
+	printf "${fmt_MAC}\n\t LAN\tMAC address\t"
 	printf "$MAC_adr\n" | sed -n ${i}p
 
 	#prints IP addresses for each if and labels each one according to its type
@@ -275,14 +275,14 @@ do
 	if_found=true
 	
 	if [[ $find_public == true ]]; then
-		nat=$(host -4 myip.opendns.com resolver1.opendns.com | sed -n 's/myip.opendns.com has address //p')
+		nat=$(host -4 myip.opendns.com resolver1.opendns.com 2> /dev/null | sed -n 's/myip.opendns.com has address //p')
 		[ -z $nat ] || echo -e "${fmt_IPv4}\t IPv4\tNAT public\t$nat"
 	fi
 
 	#get and print UUID
 	line_UUID=$(nmcli con | grep $line_if | sed -e 's/[[:alnum:]] [[:alnum:]]//g' | awk -F ' ' '{print $2}' | xargs)
 	echo -n $fmt_txt
-	[[ $print_UUID == true ]] && echo -e "\t\t      UUID:\t$line_UUID"
+	[[ $print_UUID == true && ! -z $line_UUID ]] && echo -e "\t\t      UUID:\t$line_UUID"
 
 	#get and print network ID; don't print APIPA entry if found
 	netID=$(ip route | grep $line_if | sed -e 's/default via.*//' -e 's/dev.*//' -e 's/169\.254.*//' | xargs)
