@@ -328,9 +328,9 @@ do
 			[[ -z $DNS6 ]] || echo -en "$fmt_txt\n\t  IPv6 DNS servers:" && \
 				printf "$DNS6" | sed -e 's/ /\n\t\t\t\t/'
 			duid=$(printf "$dhns_info" | sed -En "s/dhcp6_client_id = /${fmt_Ipv6}/p")
-			[[ -z $duid ]] || echo -en "$fmt_txt\n\t\t     DUID:\t$duid"
+			[[ -z $duid ]] || echo -en "$fmt_txt\n\t\t      DUID:\t$duid"
 			iaid=$(printf "$dhns_info" | sed -En "s/iaid = //p")
-			[[ -z $iaid ]] || echo -en "$fmt_txt\n\t\t     IAID:\t$iaid"
+			[[ -z $iaid ]] || echo -en "$fmt_txt\n\t\t      IAID:\t$iaid"
 		fi
 		echo ""
 	elif [[ $all == true || $dhcp_dns == true ]]
