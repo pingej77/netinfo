@@ -1,5 +1,5 @@
 # netinfo
-Bash script to provide network information in a  dense, legible, and useful way. <br>
+Bash script to provide network information in a  clear, legible, prettified, and useful way. <br>
 Lists MAC, IP addresses, network ID, and default gateway by default.  Includes DHCP and DNS information plus UUID with options.
 
 <b>Options:</b>
@@ -9,7 +9,7 @@ Lists MAC, IP addresses, network ID, and default gateway by default.  Includes D
 <br>&emsp;-4 &nbsp; only show IPv4 addresses
 <br>&emsp;-6 &nbsp; include IPv6 addresses for gateway and DNS
 <br>&emsp;-p &nbsp; find the public-facing IPv4 address (for use with NAT)
-<br>&nemsp;-A &nbsp; show all (equivalent to -aup6)
+<br>&emsp;-A &nbsp; show all (equivalent to -aup6)
 
 <b>Dependencies:</b><br>
 &emsp;ip <br>
